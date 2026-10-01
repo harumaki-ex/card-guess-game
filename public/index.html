@@ -1,52 +1,41 @@
 <!doctype html>
 <html lang="ja">
-<head><meta charset="utf-8"><title>16模様カード当てゲーム v4</title>
-<style>
-body{font-family:sans-serif;background:#111827;color:white;padding:20px}
-.card{width:70px;height:90px;font-size:30px;margin:5px}
-.panel{background:#1f2937;padding:15px;border-radius:12px;margin:10px}
-</style></head>
-<body>
-<div class="panel">
-<h1>🃏16模様カード当てゲーム</h1>
-<button onclick="start()">CPU対戦開始</button>
-<div id="game"></div>
-<div id="log"></div>
-</div>
+<head><meta charset="utf-8"><title>16模様カード当てゲーム v6</title></head>
+<body style="background:#111827;color:white;font-family:sans-serif;padding:20px">
+<h1>🃏16模様カード当てゲーム v6</h1>
+<p>同じ模様が揃ったら、自分と相手のカードを両方消去します。</p>
+<button onclick="start()">CPU対戦</button>
+<div id="game"></div><div id="log"></div>
 <script>
-const m=["★","◆","●","▲","■","♥","♠","♣","☀","☾","✿","❖","☘","⚡","☯","∞"];
-let hand=[],cpu=[],deck=[],score=0,cs=0;
+const marks=["★","◆","●","▲","■","♥","♠","♣","☀","☾","✿","❖","☘","⚡","☯","∞"];
+let hand=[],enemy=[],deck=[],score=0;
+
 function start(){
- deck=m.flatMap(x=>[x,x]).sort(()=>Math.random()-.5);
- hand=deck.splice(0,4);cpu=deck.splice(0,4);score=cs=0;draw();
+ deck=marks.flatMap(x=>[x,x]).sort(()=>Math.random()-.5);
+ hand=deck.splice(0,4);enemy=deck.splice(0,4);score=0;
+ autoCheck();draw();
 }
-function draw(){
- game.innerHTML=`自分:${score}点 CPU:${cs}点<br>山札:${deck.length}<br>`;
- hand.forEach((x,i)=>{
- let b=document.createElement("button");b.className="card";b.textContent=x;
- b.onclick=()=>play(i);game.appendChild(b);
+function autoCheck(){
+ let used=[];
+ for(let i=0;i<hand.length;i++){
+  if(hand.filter(x=>x===hand[i]).length>1) used.push(hand[i]);
+  else if(enemy.includes(hand[i])) used.push(hand[i]);
+ }
+ used=[...new Set(used)];
+ used.forEach(x=>{
+   let a=hand.indexOf(x);
+   if(a>=0) hand.splice(a,1);
+   let b=enemy.indexOf(x);
+   if(b>=0) enemy.splice(b,1);
+   score++;
+   log(x+"が揃った！自分と相手のカードを両方消去 +1点");
  });
 }
-function play(i){
- let x=hand[i];
- let hit=hand.filter(y=>y==x).length>1||cpu.includes(x);
- if(hit){
-  hand.splice(i,1);
-  let j=cpu.indexOf(x);if(j>=0)cpu.splice(j,1);
-  score++;logmsg("当たり "+x+" を自動削除 +1点");
- }else{
-  if(deck.length)hand.push(deck.pop());
-  logmsg("外れ 1枚ドロー");
- }
- cpuTurn();draw();
+function draw(){
+ game.innerHTML="得点:"+score+"<br>自分の手札:";
+ hand.forEach(x=>{game.innerHTML+=" "+x});
+ game.innerHTML+="<br>相手の手札:"+enemy.length+"枚";
 }
-function cpuTurn(){
- if(!cpu.length)return;
- let x=cpu[0];
- if(cpu.filter(y=>y==x).length>1||hand.includes(x)){
-  cpu.shift();cs++;logmsg("CPUが得点");
- }else if(deck.length)cpu.push(deck.pop());
-}
-function logmsg(x){log.innerHTML+="<p>"+x+"</p>"}
+function log(x){document.getElementById("log").innerHTML+="<p>"+x+"</p>"}
 </script>
 </body></html>
