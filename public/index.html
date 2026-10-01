@@ -1,1 +1,28 @@
-
+<!doctype html>
+<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>16模様カード当てゲーム</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#111827;color:white;margin:0}.wrap{max-width:850px;margin:auto;padding:20px}.panel{background:#1f2937;padding:20px;border-radius:15px;margin:15px 0}.hidden{display:none}.row{display:flex;gap:10px;flex-wrap:wrap}button,input{font:inherit;padding:10px;border-radius:9px;border:1px solid #64748b}button{background:#374151;color:white;cursor:pointer}button:hover{background:#4b5563}.primary{background:#2563eb}.cards{display:flex;gap:9px;flex-wrap:wrap}.card{width:75px;height:100px;background:white;color:#111827;font-size:32px}.back{width:55px;height:75px;background:#374151;color:white;font-size:25px}.log{height:140px;overflow:auto;background:#111827;padding:10px;border-radius:8px}.code{font-size:32px;text-align:center;letter-spacing:5px;font-weight:bold}.stats{display:flex;gap:18px;flex-wrap:wrap}
+</style></head><body><div class="wrap">
+<div id="home" class="panel"><h1>🃏 16模様カード当てゲーム</h1><p>自分のカードを1枚選び、相手の手札に同じ模様があるか当てよう！</p><button class="primary" onclick="show('create')">ルームを作成</button> <button onclick="show('join')">ルームに参加</button></div>
+<div id="create" class="panel hidden"><h2>ルームを作成</h2><input id="cn" placeholder="名前" maxlength="20"> <button class="primary" onclick="create()">作成</button> <button onclick="show('home')">戻る</button></div>
+<div id="waiting" class="panel hidden"><h2>対戦相手を待っています</h2><p>このコードを相手に送ってください。</p><div id="code" class="code"></div></div>
+<div id="join" class="panel hidden"><h2>ルームに参加</h2><input id="jc" placeholder="ルームコード" maxlength="6"> <input id="jn" placeholder="名前" maxlength="20"> <button class="primary" onclick="join()">参加</button> <button onclick="show('home')">戻る</button></div>
+<div id="game" class="hidden">
+<div class="panel"><div class="stats"><span id="names"></span><span>山札:<b id="deck"></b></span><span>自分:<b id="ms"></b>点</span><span>相手:<b id="os"></b>点</span><b id="turn"></b></div></div>
+<div class="panel"><h2>相手の手札 <span id="oc"></span></h2><div id="opp" class="row"></div></div>
+<div class="panel"><h2>自分の手札</h2><p id="inst"></p><div id="mine" class="cards"></div></div>
+<div class="panel"><h2>ゲームログ</h2><div id="log" class="log"></div></div></div>
+<div id="result" class="panel hidden"><h1 id="rt"></h1><p id="rs"></p><button class="primary" onclick="location.reload()">もう一度遊ぶ</button></div>
+</div>
+<script>
+const syms=["★","◆","●","▲","■","♥","♠","♣","☀","☾","✿","❖","☘","⚡","☯","∞"];let ws,id,state;
+const $=x=>document.getElementById(x);function show(x){["home","create","waiting","join","game","result"].forEach(y=>$(y).classList.toggle("hidden",x!=y))}
+function conn(cb){ws=new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host);ws.onmessage=e=>msg(JSON.parse(e.data));ws.onclose=()=>{if(state?.status==="playing")alert("サーバーとの接続が切れました。")};ws.addEventListener("open",cb,{once:true})}
+function send(x){if(ws?.readyState===1)ws.send(JSON.stringify(x))}
+function create(){let n=$("cn").value.trim();if(!n)return alert("名前を入力してください");conn(()=>send({type:"create",name:n}))}
+function join(){let n=$("jn").value.trim(),c=$("jc").value.trim().toUpperCase();if(!n||c.length!==6)return alert("名前と6文字のコードを入力してください");conn(()=>send({type:"join",name:n,room:c}))}
+function msg(m){if(m.type==="error"){alert(m.message);return}if(m.type==="created"){id=m.id;$("code").textContent=m.room;show("waiting")}if(m.type==="state"){id=m.id;state=m.state;if(state.status==="waiting"){show("waiting");$("code").textContent=state.room}if(state.status==="playing"){show("game");render()}if(state.status==="finished")finish()}if(m.type==="log"){let d=document.createElement("div");d.textContent=m.message;$("log").appendChild(d);$("log").scrollTop=$("log").scrollHeight}if(m.type==="finished"){state=m.state;finish()}}
+function render(){let me=state.players[id],op=state.players[state.otherId];$("names").textContent=me.name+" vs "+op.name;$("deck").textContent=state.deckCount;$("ms").textContent=me.score;$("os").textContent=op.score;$("turn").textContent=state.turn===id?"あなたのターン":"相手のターン";$("oc").textContent="("+op.hand.length+"枚)";$("opp").innerHTML="";op.hand.forEach(()=>{let x=document.createElement("button");x.className="back";x.textContent="？";x.disabled=true;$("opp").appendChild(x)});$("mine").innerHTML="";me.hand.forEach((s,i)=>{let x=document.createElement("button");x.className="card";x.textContent=s;x.disabled=state.turn!==id;x.onclick=()=>send({type:"guess",index:i});$("mine").appendChild(x)});$("inst").textContent=state.turn===id?"自分のカードを1枚選んでください。相手の手札は選びません。":"相手のターンを待っています。"}
+function finish(){show("result");let me=state.players[id],op=state.players[state.otherId];$("rt").textContent=me.score>op.score?"🎉 あなたの勝ち！":me.score<op.score?"😢 あなたの負け":"🤝 引き分け";$("rs").textContent=me.name+" "+me.score+"点 / "+op.name+" "+op.score+"点"}
+</script></body></html>
