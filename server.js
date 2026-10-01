@@ -1,0 +1,15 @@
+const http=require("http"),fs=require("fs"),path=require("path"),{WebSocketServer}=require("ws");
+const PORT=process.env.PORT||3000,rooms=new Map(),S=["★","◆","●","▲","■","♥","♠","♣","☀","☾","✿","❖","☘","⚡","☯","∞"];
+const sh=a=>{for(let i=a.length-1;i;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const send=(w,x)=>w.readyState===1&&w.send(JSON.stringify(x)),bc=(r,x)=>r.c.forEach(p=>send(p.w,x));
+function state(r,me){let ids=[...r.c.keys()],p={};ids.forEach(i=>{let x=r.c.get(i);p[i]={name:x.n,score:x.s,hand:x.h}});return{status:r.status,room:r.code,players:p,otherId:ids.find(i=>i!==me)||null,turn:r.turn,deckCount:r.d.length}}
+function states(r){r.c.forEach((p,i)=>send(p.w,{type:"state",id:i,state:state(r,i)}))}
+function log(r,x){bc(r,{type:"log",message:x})}
+const server=http.createServer((q,res)=>{let u=q.url.split("?")[0];if(u==="/")u="/index.html";let f=path.join(__dirname,"public",u);if(!f.startsWith(path.join(__dirname,"public")))return res.end("Forbidden");fs.readFile(f,(e,d)=>{if(e){res.statusCode=404;return res.end("Not Found")}res.end(d)})});
+const wss=new WebSocketServer({server});
+wss.on("connection",w=>{let id,r;w.on("message",raw=>{let m;try{m=JSON.parse(raw)}catch{return}
+if(m.type==="create"){let c;do c=Math.random().toString(16).slice(2,8).toUpperCase();while(rooms.has(c));id=Math.random().toString(36).slice(2,10);r={code:c,c:new Map(),d:[],turn:null,status:"waiting"};r.c.set(id,{w,n:String(m.name||"Player").slice(0,20),s:0,h:[]});rooms.set(c,r);send(w,{type:"created",room:c,id});states(r)}
+if(m.type==="join"){r=rooms.get(String(m.room||"").toUpperCase());if(!r)return send(w,{type:"error",message:"そのルームは見つかりません。"});if(r.c.size>=2)return send(w,{type:"error",message:"このルームは満員です。"});id=Math.random().toString(36).slice(2,10);r.c.set(id,{w,n:String(m.name||"Player").slice(0,20),s:0,h:[]});r.d=sh(S.flatMap(x=>[x,x]));let ids=[...r.c.keys()];ids.forEach(i=>r.c.get(i).h=r.d.splice(0,4));r.status="playing";r.turn=ids[0];states(r);log(r,"対戦開始！自分のカードを1枚選んでください。")}
+if(m.type==="guess"&&r?.status==="playing"&&id===r.turn){let me=r.c.get(id),ids=[...r.c.keys()],oid=ids.find(x=>x!==id),op=r.c.get(oid),i=Number(m.index);if(!Number.isInteger(i)||!me.h[i])return;let chosen=me.h[i],j=op.h.indexOf(chosen);if(j>=0){me.h.splice(i,1);op.h.splice(j,1);me.s++;log(r,me.n+" が「"+chosen+"」を選択 → 相手に同じ模様があった！ +1ポイント");if(!me.h.length&&r.d.length)me.h.push(...r.d.splice(0,Math.min(4,r.d.length)));if(!op.h.length&&r.d.length)op.h.push(...r.d.splice(0,Math.min(4,r.d.length)))}else{if(r.d.length)me.h.push(r.d.pop());log(r,me.n+" が「"+chosen+"」を選択 → 同じ模様はなかった。1枚ドロー")};if(!r.d.length&&(me.h.length===0||op.h.length===0)){r.status="finished";states(r);bc(r,{type:"finished",state:state(r,id)});return}r.turn=oid;states(r)}});
+w.on("close",()=>{if(r&&id&&r.c.has(id)){r.c.delete(id);if(r.c.size){let p=[...r.c.values()][0];send(p.w,{type:"error",message:"相手が退出しました。"})}rooms.delete(r.code)}})});
+server.listen(PORT,()=>console.log("Game server running on port "+PORT));
