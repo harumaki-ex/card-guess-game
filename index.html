@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>16模様カード当て</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0d1117;color:#f5f7fb;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1000px;margin:auto;padding:20px}
+h1{text-align:center;font-size:clamp(28px,6vw,44px)}
+.panel{background:#181e28;border:1px solid #343d4d;border-radius:18px;padding:18px;margin:14px 0}
+.menu{max-width:460px;margin:30px auto;display:grid;gap:12px}
+button{border:0;border-radius:12px;padding:12px 16px;background:#4b7dff;color:white;font-weight:800;cursor:pointer}
+button:hover{filter:brightness(1.08)}
+button.secondary{background:#303746}
+input{width:100%;padding:13px;border-radius:11px;border:1px solid #465064;background:#0e131b;color:white;font-size:18px;text-transform:uppercase}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.hidden{display:none!important}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.badge{background:#303746;padding:6px 10px;border-radius:999px}
+.score{font-size:21px;font-weight:900}
+.status{text-align:center;font-weight:800;min-height:28px}
+.cards{display:flex;flex-wrap:wrap;gap:10px;min-height:100px}
+.card{width:78px;height:106px;background:#fff;color:#111;border:2px solid #697386;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer}
+.card.back{background:repeating-linear-gradient(45deg,#252c3a,#252c3a 7px,#394355 7px,#394355 14px);color:transparent}
+.card.selected{outline:4px solid #ffd447;transform:translateY(-4px)}
+.patterns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pattern{background:#252c39;border:1px solid #4b566a;font-size:22px}
+.small{opacity:.72;font-size:13px}
+.log{max-height:190px;overflow:auto;line-height:1.6;font-size:13px}
+#result{text-align:center;font-size:34px;font-weight:900;padding:25px}
+.roomcode{font-size:35px;letter-spacing:8px;text-align:center;font-weight:900;margin:15px}
+.wait{font-size:20px;text-align:center}
+@media(max-width:600px){.wrap{padding:10px}.card{width:65px;height:92px}.patterns{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="home" class="wrap">
+<h1>🃏 16模様カード当て</h1>
+<div class="panel">
+<p><b>オンライン対戦</b></p>
+<ul>
+<li>16種類の模様が2枚ずつ、合計32枚。</li>
+<li>最初は4枚ずつ。</li>
+<li>相手のカードを1枚選び、模様を予想。</li>
+<li>外したら1枚ドロー。</li>
+<li>当てたら双方から1枚ずつ消え、1ポイント。</li>
+<li>手札が0枚なら4枚ドロー。</li>
+<li>山札が0枚で、どちらかの手札が0枚になったら決着。</li>
+<li>ポイントが高い方が勝利。同点は引き分け。</li>
+</ul>
+</div>
+<div class="menu">
+<button onclick="createRoom()">ルームを作成</button>
+<button class="secondary" onclick="show('join')">ルームに参加</button>
+</div>
+</div>
+
+<div id="join" class="wrap hidden">
+<h1>ルームに参加</h1>
+<div class="panel">
+<label>ルームコード</label>
+<input id="joinCode" maxlength="6" placeholder="例：A7K2P9">
+<br><br>
+<label>プレイヤー名</label>
+<input id="joinName" maxlength="16" placeholder="あなたの名前">
+<br><br>
+<button onclick="joinRoom()">参加する</button>
+</div>
+<button class="secondary" onclick="show('home')">戻る</button>
+</div>
+
+<div id="create" class="wrap hidden">
+<h1>ルーム作成</h1>
+<div class="panel">
+<label>プレイヤー名</label>
+<input id="createName" maxlength="16" placeholder="あなたの名前">
+<br><br>
+<button onclick="makeRoom()">ルームを作成する</button>
+</div>
+<button class="secondary" onclick="show('home')">戻る</button>
+</div>
+
+<div id="waiting" class="wrap hidden">
+<h1>対戦相手を待っています</h1>
+<div class="panel">
+<div class="roomcode" id="roomCodeDisplay">------</div>
+<p class="wait">このコードを対戦相手に送ってください。</p>
+<p class="small" style="text-align:center">相手が参加すると自動的にゲームが始まります。</p>
+</div>
+<button class="secondary" onclick="leaveRoom()">ルームを退出</button>
+</div>
+
+<div id="game" class="wrap hidden">
+<div class="top">
+<div><b id="names"></b> <span id="turn" class="badge"></span></div>
+<div class="score"><span id="myScore">0</span> ― <span id="oppScore">0</span></div>
+</div>
+<div class="panel"><div id="status" class="status"></div></div>
+<div class="panel">
+<h3>相手の手札 <span id="oppCount"></span></h3>
+<div id="oppCards" class="cards"></div>
+</div>
+<div class="panel">
+<h3>あなたの手札 <span id="myCount"></span></h3>
+<div id="myCards" class="cards"></div>
+<p class="small">正解したときに捨てる自分のカードを1枚選択。</p>
+</div>
+<div class="panel">
+<h3>模様を予想</h3>
+<div id="patterns" class="patterns"></div>
+</div>
+<div class="panel"><b>ゲームログ</b><div id="log" class="log"></div></div>
+<button class="secondary" onclick="leaveRoom()">退出</button>
+</div>
+
+<div id="result" class="wrap hidden">
+<div class="panel">
+<div id="resultText">結果</div>
+<p id="resultScore"></p>
+<button onclick="location.reload()">もう一度遊ぶ</button>
+</div>
+</div>
+
+<script>
+const P=["★","◆","●","▲","■","♥","♠","♣","☀","☾","✿","❖","☘","⚡","☯","∞"];
+let ws=null, myIndex=null, selectedOpp=-1, selectedMine=-1, game=null, roomCode="";
+
+function $(id){return document.getElementById(id)}
+function show(id){["home","join","create","waiting","game","result"].forEach(x=>$(x).classList.add("hidden"));$(id).classList.remove("hidden")}
+function connect(){
+ const proto=location.protocol==="https:"?"wss":"ws";
+ ws=new WebSocket(`${proto}://${location.host}`);
+ ws.onmessage=e=>handle(JSON.parse(e.data));
+ ws.onclose=()=>{if(game)$("status").textContent="サーバーとの接続が切れました。"};
+}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+function createRoom(){show("create")}
+function makeRoom(){
+ const name=($("createName").value.trim()||"プレイヤー1").slice(0,16);
+ connect();
+ ws.onopen=()=>send({type:"create",name});
+}
+function joinRoom(){
+ const code=$("joinCode").value.trim().toUpperCase();
+ const name=($("joinName").value.trim()||"プレイヤー2").slice(0,16);
+ if(code.length!==6){alert("6文字のルームコードを入力してください");return}
+ roomCode=code;connect();
+ ws.onopen=()=>send({type:"join",code,name});
+}
+function handle(m){
+ if(m.type==="created"){
+   roomCode=m.code;myIndex=0;
+   $("roomCodeDisplay").textContent=roomCode;show("waiting");return;
+ }
+ if(m.type==="waiting"){show("waiting");return}
+ if(m.type==="started"){myIndex=m.player;game=m.state;show("game");render();return}
+ if(m.type==="state"){game=m.state;show("game");render();return}
+ if(m.type==="log"){addLog(m.text);return}
+ if(m.type==="finished"){
+   $("resultText").textContent=m.title;
+   $("resultScore").textContent=m.detail;
+   show("result");return;
+ }
+ if(m.type==="error"){alert(m.message);return}
+ if(m.type==="opponent_left"){alert("対戦相手が退出しました。");location.reload()}
+}
+function selectOpp(i){if(!game||game.turn!==myIndex)return;selectedOpp=i;render()}
+function selectMine(i){if(!game||game.turn!==myIndex)return;selectedMine=i;render()}
+function guess(pattern){
+ if(!game||game.turn!==myIndex){return}
+ if(selectedOpp<0||selectedMine<0){$("status").textContent="相手のカードと自分のカードを1枚ずつ選んでください。";return}
+ send({type:"guess",oppIndex:selectedOpp,myIndex:selectedMine,pattern});
+ selectedOpp=selectedMine=-1;
+}
+function render(){
+ if(!game)return;
+ $("myScore").textContent=game.me.score;$("oppScore").textContent=game.opp.score;
+ $("myCount").textContent=`(${game.me.hand.length}枚)`;
+ $("oppCount").textContent=`(${game.opp.handCount}枚)`;
+ $("names").textContent=`${game.me.name} vs ${game.opp.name}`;
+ $("turn").textContent=game.turn===myIndex?"あなたのターン":"相手のターン";
+ $("status").textContent=game.turn===myIndex?"カードを選んで模様を予想！":"相手の操作を待っています…";
+ $("myCards").innerHTML=game.me.hand.map((p,i)=>`<div class="card ${selectedMine===i?"selected":""}" onclick="selectMine(${i})">${P[p]}</div>`).join("");
+ $("oppCards").innerHTML=Array.from({length:game.opp.handCount},(_,i)=>`<div class="card back ${selectedOpp===i?"selected":""}" onclick="selectOpp(${i})">?</div>`).join("");
+ $("patterns").innerHTML=P.map((p,i)=>`<button class="pattern" onclick="guess(${i})">${p}</button>`).join("");
+}
+function addLog(t){
+ $("log").innerHTML="<div>"+esc(t)+"</div>"+$("log").innerHTML;
+}
+function esc(s){return s.replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function leaveRoom(){if(ws)ws.close();location.reload()}
+</script>
+</body>
+</html>
