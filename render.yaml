@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: 16-pattern-card-online
-    runtime: node
-    buildCommand: npm install
-    startCommand: npm start
-    plan: free
